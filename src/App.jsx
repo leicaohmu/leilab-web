@@ -131,10 +131,6 @@ const INITIAL_COURSES = [
     ]
   }
 ];
-const INITIAL_NEWS = [
-  { id: 'n1', title: '祝贺课题组论文被CVPR录用', date: '2023-10-24', content: '我们关于弱监督学习的工作被录用...' },
-  { id: 'n2', title: '2024年春季招新启动', date: '2023-11-01', content: '欢迎对AI4Science感兴趣的同学加入...' },
-];
 
 // ==========================================
 // 3. Utils & Hooks
