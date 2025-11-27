@@ -1,33 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  signInWithCustomToken,
-  onAuthStateChanged 
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc, 
-  deleteDoc, 
-  onSnapshot,
-  writeBatch
-} from 'firebase/firestore';
-
-// ==========================================
-// 0. Firebase Configuration & Init
-// ==========================================
-const firebaseConfig = JSON.parse(__firebase_config || '{}');
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// Helper to get collection paths
-const getPath = (colName) => ['artifacts', appId, 'public', 'data', colName];
 
 // ==========================================
 // 1. 图标组件 (Zero Dependency SVGs)
@@ -71,8 +42,6 @@ const ImageIcon = (props) => <IconBase {...props}><rect x="3" y="3" width="18" h
 const Camera = (props) => <IconBase {...props}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></IconBase>;
 const Video = (props) => <IconBase {...props}><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></IconBase>;
 const Monitor = (props) => <IconBase {...props}><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></IconBase>;
-const Loader2 = (props) => <IconBase {...props}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></IconBase>;
-const Cloud = (props) => <IconBase {...props}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></IconBase>;
 
 // ==========================================
 // 2. Mock Data & Config
@@ -470,7 +439,7 @@ const CommentSection = ({ tutorial, onUpdate, user, isAdmin, onNotify }) => {
 };
 
 // --- Course View ---
-const CourseView = ({ courses, user, isAdminOrMember, onSaveCourse, onDeleteCourse, showNotification }) => {
+const CourseView = ({ courses, user, isAdminOrMember, onUpdateCourses, showNotification }) => {
     const [viewMode, setViewMode] = useState('list'); 
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -478,14 +447,6 @@ const CourseView = ({ courses, user, isAdminOrMember, onSaveCourse, onDeleteCour
     const [editDesc, setEditDesc] = useState('');
     const [newModuleTitle, setNewModuleTitle] = useState('');
     
-    // Auto-update local selected course when courses prop changes (sync)
-    useEffect(() => {
-        if (selectedCourse) {
-            const updated = courses.find(c => c.id === selectedCourse.id);
-            if (updated) setSelectedCourse(updated);
-        }
-    }, [courses]);
-
     const handleSelectCourse = (course) => {
         setSelectedCourse(course);
         setViewMode('detail');
@@ -509,7 +470,7 @@ const CourseView = ({ courses, user, isAdminOrMember, onSaveCourse, onDeleteCour
             students: 0,
             modules: []
         };
-        onSaveCourse(newCourse);
+        onUpdateCourses([...courses, newCourse]);
         showNotification('新课程已创建，请编辑内容', 'success');
         handleSelectCourse(newCourse);
         setIsEditing(true);
@@ -519,8 +480,13 @@ const CourseView = ({ courses, user, isAdminOrMember, onSaveCourse, onDeleteCour
 
     const handleSaveCourseInfo = () => {
         if (!selectedCourse) return;
-        const updatedCourse = { ...selectedCourse, title: editTitle, description: editDesc };
-        onSaveCourse(updatedCourse);
+        const updatedCourses = courses.map(c => 
+            c.id === selectedCourse.id 
+                ? { ...c, title: editTitle, description: editDesc } 
+                : c
+        );
+        onUpdateCourses(updatedCourses);
+        setSelectedCourse({ ...selectedCourse, title: editTitle, description: editDesc });
         setIsEditing(false);
         showNotification('课程信息已保存', 'success');
     };
@@ -536,7 +502,9 @@ const CourseView = ({ courses, user, isAdminOrMember, onSaveCourse, onDeleteCour
             ...selectedCourse,
             modules: [...selectedCourse.modules, newModule]
         };
-        onSaveCourse(updatedCourse);
+        const updatedCourses = courses.map(c => c.id === selectedCourse.id ? updatedCourse : c);
+        onUpdateCourses(updatedCourses);
+        setSelectedCourse(updatedCourse);
         setNewModuleTitle('');
         showNotification('章节已添加', 'success');
     };
@@ -563,20 +531,13 @@ const CourseView = ({ courses, user, isAdminOrMember, onSaveCourse, onDeleteCour
             })
         };
         
-        onSaveCourse(updatedCourse);
+        const updatedCourses = courses.map(c => c.id === selectedCourse.id ? updatedCourse : c);
+        onUpdateCourses(updatedCourses);
+        setSelectedCourse(updatedCourse);
     };
 
     const handleDeleteResource = (moduleId, resourceId) => {
-        if (!window.confirm('确定要删除吗？')) return;
-        if (resourceId === 'module_itself') {
-            const updatedCourse = {
-                ...selectedCourse,
-                modules: selectedCourse.modules.filter(m => m.id !== moduleId)
-            };
-            onSaveCourse(updatedCourse);
-            return;
-        }
-
+        if (!window.confirm('确定要删除该资源吗？')) return;
         const updatedCourse = {
             ...selectedCourse,
             modules: selectedCourse.modules.map(m => {
@@ -586,7 +547,9 @@ const CourseView = ({ courses, user, isAdminOrMember, onSaveCourse, onDeleteCour
                 return m;
             })
         };
-        onSaveCourse(updatedCourse);
+        const updatedCourses = courses.map(c => c.id === selectedCourse.id ? updatedCourse : c);
+        onUpdateCourses(updatedCourses);
+        setSelectedCourse(updatedCourse);
     }
 
     if (viewMode === 'list') {
@@ -655,12 +618,7 @@ const CourseView = ({ courses, user, isAdminOrMember, onSaveCourse, onDeleteCour
                              <h1 className="font-bold text-lg text-gray-900 leading-tight mb-2">{selectedCourse.title}</h1>
                              <div className="flex items-center justify-between">
                                 <div className="text-xs text-gray-500">讲师: {selectedCourse.instructorName}</div>
-                                {isAdminOrMember && (
-                                    <div className="flex gap-2">
-                                        <button onClick={() => { setIsEditing(true); setEditTitle(selectedCourse.title); setEditDesc(selectedCourse.description); }} className="text-xs text-blue-600 hover:underline">编辑</button>
-                                        <button onClick={() => { if(window.confirm('确认删除整个课程？')) { onDeleteCourse(selectedCourse.id); handleBack(); } }} className="text-xs text-red-600 hover:underline">删除</button>
-                                    </div>
-                                )}
+                                {isAdminOrMember && <button onClick={() => { setIsEditing(true); setEditTitle(selectedCourse.title); setEditDesc(selectedCourse.description); }} className="text-xs text-blue-600 hover:underline">编辑信息</button>}
                              </div>
                         </div>
                     )}
@@ -990,7 +948,7 @@ const ProfileView = ({ user, onUpdateUser, showNotification, tutorials = [], onN
 };
 
 // 2. Tutorial/Docs Sidebar Layout
-const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onSave, onDelete, isAdminOrMember, onRenameCategory, showNotification, onNotify }) => {
+const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onUpdate, onDelete, onCreate, isAdminOrMember, onRenameCategory, showNotification, onNotify }) => {
   const categories = [...new Set(tutorials.map(t => t.category))];
   const sortedTutorials = categories.flatMap(cat => tutorials.filter(t => t.category === cat));
   const selectedTutorial = tutorials.find(t => t.id === selectedId);
@@ -1026,42 +984,16 @@ const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onSave, onDelet
     }
   }, [selectedTutorial, isEditing]);
 
-  const handleCancel = () => { setIsEditing(false); if (isCreating && selectedTutorial) { /* if canceled creation, we rely on user to not have saved it yet, but here we assume 'create' starts edit mode immediately. */ } setIsCreating(false); };
-  
+  const handleCancel = () => { setIsEditing(false); if (isCreating && selectedTutorial) { onDelete(selectedTutorial.id); } setIsCreating(false); };
   const handleSave = () => {
-    const tutorialToSave = isCreating 
-        ? { 
-            id: Date.now().toString(), 
-            title: editTitle, 
-            category: editCategory, 
-            content: editContent, 
-            type: editType, 
-            authorId: user?.id, 
-            authorName: user?.name, 
-            likes: 0, 
-            likedBy: [], 
-            comments: [],
-            lastModified: new Date().toISOString()
-          }
-        : { ...selectedTutorial, title: editTitle, content: editContent, type: editType, category: editCategory, lastModified: new Date().toISOString() };
-    
-    onSave(tutorialToSave);
-    if(isCreating) onSelect(tutorialToSave.id);
+    onUpdate({ ...selectedTutorial, title: editTitle, content: editContent, type: editType, category: editCategory, lastModified: new Date().toISOString(), });
     setIsEditing(false); setIsCreating(false); showNotification('保存成功', 'success');
   };
-
   const handleCreate = () => {
-    setEditTitle('新文档');
-    setEditContent('# 新文档\n开始编写...');
-    setEditType('markdown');
-    setEditCategory('未分类');
-    setIsCreating(true);
-    setIsEditing(true);
-    // Note: We don't save to DB yet, only when they click Save.
-    // To show the UI, we temporarily mock a selected tutorial.
-    // But since the UI depends on 'selectedTutorial', we handle this by just setting isCreating=true and using form values.
+    const newId = Date.now().toString();
+    const newTutorial = { id: newId, title: '新文档', category: '未分类', content: '# 新文档\n开始编写...', type: 'markdown', authorId: user?.id, authorName: user?.name, likes: 0, likedBy: [], comments: [] };
+    onUpdate(newTutorial, true); onSelect(newId); setEditTitle(newTutorial.title); setEditContent(newTutorial.content); setEditType(newTutorial.type); setEditCategory(newTutorial.category); setIsEditing(true); setIsCreating(true);
   };
-
   const handleUniversalUpload = (e) => {
     const file = e.target.files[0];
     const inputEl = e.target;
@@ -1103,18 +1035,11 @@ const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onSave, onDelet
       const likedBy = selectedTutorial.likedBy || [];
       const hasLiked = likedBy.includes(user.id);
       const newLikedBy = hasLiked ? likedBy.filter(id => id !== user.id) : [...likedBy, user.id];
-      onSave({ ...selectedTutorial, likes: newLikedBy.length, likedBy: newLikedBy });
+      onUpdate({ ...selectedTutorial, likes: newLikedBy.length, likedBy: newLikedBy });
       if (!hasLiked && selectedTutorial.authorId && selectedTutorial.authorId !== user.id) { onNotify(selectedTutorial.authorId, `${user.name} 点赞了你的文章 "${selectedTutorial.title}"`); }
   };
   let notebookStats = null;
   if (editType === 'ipynb' && editContent) { try { const data = JSON.parse(editContent); notebookStats = { cells: data.cells?.length || 0, size: (editContent.length / 1024).toFixed(1) + ' KB' }; } catch(e) {} }
-
-  // Special case: Creating mode without a selected tutorial
-  if (isCreating && !selectedTutorial) {
-      // Mock a tutorial object for the editor
-  }
-  
-  const displayTutorial = isCreating ? { title: editTitle, content: editContent, type: editType, category: editCategory } : selectedTutorial;
 
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-white">
@@ -1145,13 +1070,13 @@ const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onSave, onDelet
         {isAdminOrMember && (<div className="p-4 border-t border-gray-200"><Button variant="primary" className="w-full text-sm" onClick={handleCreate}><Plus className="w-4 h-4" /> 新建教程</Button></div>)}
       </div>
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-white relative">
-        {(selectedTutorial || isCreating) ? (
+        {selectedTutorial ? (
           <>
             <div className="flex items-center justify-between px-8 py-4 border-b border-gray-100 bg-white shrink-0">
                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <span className="bg-gray-100 px-2 py-0.5 rounded text-xs">{isCreating ? editCategory : selectedTutorial.category}</span><ChevronRight className="w-4 h-4" /><span className="font-medium text-gray-900 truncate max-w-xs">{isCreating ? editTitle : selectedTutorial.title}</span>{!isCreating && selectedTutorial.authorName && (<span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded ml-2 border border-blue-100">By {selectedTutorial.authorName}</span>)}
+                  <span className="bg-gray-100 px-2 py-0.5 rounded text-xs">{selectedTutorial.category}</span><ChevronRight className="w-4 h-4" /><span className="font-medium text-gray-900 truncate max-w-xs">{selectedTutorial.title}</span>{selectedTutorial.authorName && (<span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded ml-2 border border-blue-100">By {selectedTutorial.authorName}</span>)}
                </div>
-               {(canManageCurrent || isCreating) && (
+               {canManageCurrent && (
                  <div className="flex gap-2">
                    {isEditing ? (
                      <><Button variant="secondary" size="sm" onClick={handleCancel}>取消</Button><Button variant="primary" size="sm" onClick={handleSave}><Check className="w-4 h-4" /> 保存</Button></>
@@ -1180,7 +1105,7 @@ const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onSave, onDelet
                   {showAiPanel && (
                     <div className="bg-purple-50 p-4 border-b border-purple-100 animate-in slide-in-from-top-2 duration-200">
                       <label className="block text-xs font-bold text-purple-800 mb-2 flex items-center gap-1"><User className="w-3 h-3" /> 智能生成内容</label>
-                      <div className="flex gap-2"><input value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} placeholder="描述你想写的内容..." className="flex-1 border border-purple-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" onKeyDown={e => e.key === 'Enter' && handleAiGenerate()}/><Button variant="ai" size="sm" onClick={handleAiGenerate} disabled={isAiLoading || !aiPrompt.trim()}>{isAiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : '生成'}</Button></div>
+                      <div className="flex gap-2"><input value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} placeholder="描述你想写的内容..." className="flex-1 border border-purple-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" onKeyDown={e => e.key === 'Enter' && handleAiGenerate()}/><Button variant="ai" size="sm" onClick={handleAiGenerate} disabled={isAiLoading || !aiPrompt.trim()}>{isAiLoading ? <Settings className="w-4 h-4 animate-spin" /> : '生成'}</Button></div>
                     </div>
                   )}
                   {editType === 'markdown' ? (
@@ -1224,7 +1149,7 @@ const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onSave, onDelet
                         <button onClick={() => onSelect(nextTutorial.id)} className="group flex flex-col items-end p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all text-right"><span className="text-xs text-gray-400 mb-1 flex items-center gap-1 group-hover:text-blue-500">下一篇 <ChevronRight className="w-3 h-3" /></span><span className="font-bold text-gray-800 group-hover:text-blue-700 line-clamp-1">{nextTutorial.title}</span></button>
                     ) : <div className="p-4"></div>}
                 </div>
-                <CommentSection tutorial={selectedTutorial} onUpdate={onSave} user={user} isAdmin={isAdmin} onNotify={onNotify} />
+                <CommentSection tutorial={selectedTutorial} onUpdate={onUpdate} user={user} isAdmin={isAdmin} onNotify={onNotify} />
               </div>
             )}
           </>
@@ -1236,16 +1161,11 @@ const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onSave, onDelet
   );
 };
 
-// ... (AdminPanel, LoginView) ...
+// ... (AdminPanel, LoginView - unchanged) ...
 const AdminPanel = ({ users, onUpdateUser, registrationCode, onUpdateCode, onDeleteUser, currentUser, onNotify }) => {
     // ... (implementation same as before)
     const [newCode, setNewCode] = useState(registrationCode);
   const [isEditingCode, setIsEditingCode] = useState(false);
-
-  // Sync state when prop updates
-  useEffect(() => {
-      setNewCode(registrationCode);
-  }, [registrationCode]);
 
   const grantAccess = (userId) => {
     const expiry = new Date();
@@ -1376,91 +1296,23 @@ const LoginView = ({ users, onLogin, onRegister }) => {
 
 // ... (App implementation) ...
 const App = () => {
-    // State management
-    const [firebaseUser, setFirebaseUser] = useState(null); // Auth user for DB connection
-    const [users, setUsers] = useState([]);
-    const [tutorials, setTutorials] = useState([]);
-    const [courses, setCourses] = useState([]);
-    const [news, setNews] = useState([]);
-    const [registrationCode, setRegistrationCode] = useState(DEFAULT_CODE);
+    // ... (same state and effects) ...
+    const [users, setUsers] = useState(() => JSON.parse(localStorage.getItem('lab_users_v2')) || INITIAL_USERS);
+    const [tutorials, setTutorials] = useState(() => JSON.parse(localStorage.getItem('lab_tutorials_v2')) || INITIAL_TUTORIALS);
+    const [courses, setCourses] = useState(() => JSON.parse(localStorage.getItem('lab_courses_v2')) || INITIAL_COURSES); // Add courses state
+    const [news, setNews] = useState(() => JSON.parse(localStorage.getItem('lab_news_v2')) || INITIAL_NEWS);
+    const [registrationCode, setRegistrationCode] = useState(() => localStorage.getItem('lab_reg_code') || DEFAULT_CODE);
     const [notification, setNotification] = useState(null);
-    const [currentUser, setCurrentUser] = useState(null); // App-level user
+    const [currentUser, setCurrentUser] = useState(null); 
     const [currentView, setCurrentView] = useState('home'); 
-    const [selectedTutorialId, setSelectedTutorialId] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
-
-    // 1. Initialize Firebase Auth
-    useEffect(() => {
-        const initAuth = async () => {
-          try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-              await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-              await signInAnonymously(auth);
-            }
-          } catch (err) {
-            console.error("Auth Error:", err);
-            showNotification("连接云服务失败，请尝试刷新", "error");
-          }
-        };
-        initAuth();
-        return onAuthStateChanged(auth, setFirebaseUser);
-    }, []);
-
-    // 2. Sync Data with Firestore (Snapshot Listeners)
-    useEffect(() => {
-        if (!firebaseUser) return;
-        setIsLoading(true);
-
-        // Helper to sync collection to state
-        const syncCollection = (colName, setState, initialData = null) => {
-            const ref = collection(db, ...getPath(colName));
-            return onSnapshot(ref, (snap) => {
-                if (snap.empty && initialData) {
-                   // Seed database if empty
-                   const batch = writeBatch(db);
-                   initialData.forEach(item => {
-                       const docRef = doc(db, ...getPath(colName), item.id);
-                       batch.set(docRef, item);
-                   });
-                   // Also seed settings if this is first run
-                   if (colName === 'users') {
-                       const settingsRef = doc(db, ...getPath('settings'), 'config');
-                       batch.set(settingsRef, { registrationCode: DEFAULT_CODE });
-                   }
-                   batch.commit().catch(e => console.error("Seeding failed", e));
-                } else {
-                    const data = snap.docs.map(d => d.data());
-                    setState(data);
-                }
-            });
-        };
-
-        const unsubUsers = syncCollection('users', setUsers, INITIAL_USERS);
-        const unsubTutorials = syncCollection('tutorials', setTutorials, INITIAL_TUTORIALS);
-        const unsubCourses = syncCollection('courses', setCourses, INITIAL_COURSES);
-        const unsubNews = syncCollection('news', setNews, INITIAL_NEWS);
-        
-        // Sync Settings (Special case: single document)
-        const settingsRef = doc(db, ...getPath('settings'), 'config');
-        const unsubSettings = onSnapshot(settingsRef, (doc) => {
-            if (doc.exists()) {
-                setRegistrationCode(doc.data().registrationCode);
-            }
-        });
-
-        setIsLoading(false);
-
-        return () => {
-            unsubUsers();
-            unsubTutorials();
-            unsubCourses();
-            unsubNews();
-            unsubSettings();
-        };
-    }, [firebaseUser]);
+    const [selectedTutorialId, setSelectedTutorialId] = useState(null); // Fix initial state
+    
+    useEffect(() => { localStorage.setItem('lab_users_v2', JSON.stringify(users)); }, [users]);
+    useEffect(() => { localStorage.setItem('lab_tutorials_v2', JSON.stringify(tutorials)); }, [tutorials]);
+    useEffect(() => { localStorage.setItem('lab_courses_v2', JSON.stringify(courses)); }, [courses]); // Persist courses
+    useEffect(() => { localStorage.setItem('lab_news_v2', JSON.stringify(news)); }, [news]);
+    useEffect(() => { localStorage.setItem('lab_reg_code', registrationCode); }, [registrationCode]);
   
-    // 3. Keep current user synced with latest data
     useEffect(() => {
       if (currentUser) {
         const updatedUser = users.find(u => u.id === currentUser.id);
@@ -1470,13 +1322,10 @@ const App = () => {
       }
     }, [users, currentUser]);
 
-    // --- Action Handlers (Now interacting with Firestore) ---
-
     const showNotification = (message, type = 'info') => {
       setNotification({ message, type });
     };
   
-    // App Logic: Login
     const handleLogin = (email, password) => {
       const userByEmail = users.find(u => u.email === email);
       if (!userByEmail) {
@@ -1489,12 +1338,9 @@ const App = () => {
       }
       setCurrentUser(userByEmail);
       setCurrentView('home');
-      showNotification(`欢迎回来，${userByEmail.name}`, 'success');
     };
   
-    // App Logic: Register (Writes to Firestore)
-    const handleRegister = async (name, email, password, code) => {
-      if (!firebaseUser) return;
+    const handleRegister = (name, email, password, code) => {
       if (users.find(u => u.email === email)) {
         showNotification('该邮箱已被注册，请直接登录。', 'error');
         return;
@@ -1527,18 +1373,12 @@ const App = () => {
           avatar: randomAvatar,
           notifications: [] 
       };
-
-      try {
-          await setDoc(doc(db, ...getPath('users'), newUser.id), newUser);
-          setCurrentUser(newUser);
-          setCurrentView('home');
-          if (role === 'admin') showNotification(`欢迎！作为系统首位用户，您已自动获得管理员权限。`, 'success');
-          else if (role === 'member') showNotification('认证成功！您已成为课题组成员。', 'success');
-          else showNotification('注册成功。您当前身份为游客，权限受限。', 'success');
-      } catch (e) {
-          console.error(e);
-          showNotification('注册失败，请检查网络', 'error');
-      }
+      setUsers([...users, newUser]);
+      setCurrentUser(newUser);
+      setCurrentView('home');
+      if (role === 'admin') showNotification(`欢迎！作为系统首位用户，您已自动获得管理员权限。`, 'success');
+      else if (role === 'member') showNotification('认证成功！您已成为课题组成员。', 'success');
+      else showNotification('注册成功。您当前身份为游客，权限受限。', 'success');
     };
   
     const hasAccess = (section) => {
@@ -1549,162 +1389,102 @@ const App = () => {
     };
     const isAdmin = currentUser?.role === 'admin';
   
-    // Update User (Firestore)
-    const handleUpdateUser = async (id, data) => {
-      if (!firebaseUser) return;
-      try {
-          // 1. Update User
-          await setDoc(doc(db, ...getPath('users'), id), { ...users.find(u => u.id === id), ...data });
+    const handleUpdateUser = (id, data) => {
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
 
-          // 2. If name/avatar changed, we should update related content (Tutorial Authors/Comments)
-          // This simulates a relational update. In a real app, you'd use Cloud Functions or store minimal user data.
-          if (data.name || data.avatar || data.title) {
-            const batch = writeBatch(db);
-            let hasBatchOps = false;
+      if (data.name || data.avatar || data.title || data.cardImage) {
+        setTutorials(prev => prev.map(t => {
+          let tModified = false;
+          let newT = { ...t };
 
-            tutorials.forEach(t => {
-                let tModified = false;
-                let newT = { ...t };
-
-                if (t.authorId === id && data.name) {
-                    newT.authorName = data.name;
-                    tModified = true;
-                }
-
-                if (newT.comments?.length) {
-                    const newComments = newT.comments.map(c => {
-                        let cModified = false;
-                        let newC = { ...c };
-                        if (c.userId === id) {
-                            if (data.name) newC.userName = data.name;
-                            if (data.avatar) newC.userAvatar = data.avatar;
-                            cModified = true;
-                        }
-                        if (c.replies?.length) {
-                            const newReplies = c.replies.map(r => {
-                                if (r.userId === id) {
-                                    cModified = true;
-                                    return { 
-                                        ...r, 
-                                        userName: data.name || r.userName,
-                                        userAvatar: data.avatar || r.userAvatar
-                                    };
-                                }
-                                return r;
-                            });
-                            newC.replies = newReplies;
-                        }
-                        if (cModified) tModified = true;
-                        return newC;
-                    });
-                    newT.comments = newComments;
-                }
-
-                if (tModified) {
-                    batch.set(doc(db, ...getPath('tutorials'), t.id), newT);
-                    hasBatchOps = true;
-                }
-            });
-
-            if (hasBatchOps) await batch.commit();
+          if (t.authorId === id && data.name) {
+             newT.authorName = data.name;
+             tModified = true;
           }
 
-      } catch (e) {
-          console.error("Update user failed", e);
-          showNotification("更新失败", "error");
+          if (newT.comments?.length) {
+             const newComments = newT.comments.map(c => {
+                let cModified = false;
+                let newC = { ...c };
+
+                if (c.userId === id) {
+                   if (data.name) newC.userName = data.name;
+                   if (data.avatar) newC.userAvatar = data.avatar;
+                   cModified = true;
+                }
+
+                if (c.replies?.length) {
+                   const newReplies = c.replies.map(r => {
+                      if (r.userId === id) {
+                         cModified = true;
+                         return { 
+                             ...r, 
+                             userName: data.name || r.userName,
+                             userAvatar: data.avatar || r.userAvatar
+                         };
+                      }
+                      return r;
+                   });
+                   newC.replies = newReplies;
+                }
+
+                if (cModified) tModified = true;
+                return newC;
+             });
+             newT.comments = newComments;
+          }
+
+          return tModified ? newT : t;
+        }));
       }
     };
     
-    const handleDeleteUser = async (id) => {
-        if (!firebaseUser) return;
-        if(window.confirm('确认删除该用户吗？此操作不可逆。')) {
-            await deleteDoc(doc(db, ...getPath('users'), id));
-            showNotification('用户删除成功', 'success');
-        }
+    const handleDeleteUser = (id) => {
+      setUsers(prev => prev.filter(u => u.id !== id));
+      showNotification('用户删除成功', 'success');
     };
 
-    const handleNotify = async (targetUserId, content) => {
-        if (!firebaseUser) return;
-        const targetUser = users.find(u => u.id === targetUserId);
-        if (!targetUser) return;
-
-        const newNotification = {
-            id: Date.now().toString(),
-            content,
-            date: new Date().toLocaleDateString(),
-            read: false
-        };
-        const updatedNotifications = [newNotification, ...(targetUser.notifications || [])];
-        await handleUpdateUser(targetUserId, { notifications: updatedNotifications });
+    const handleNotify = (targetUserId, content) => {
+        setUsers(prevUsers => prevUsers.map(u => {
+            if (u.id === targetUserId) {
+                const newNotification = {
+                    id: Date.now().toString(),
+                    content,
+                    date: new Date().toLocaleDateString(),
+                    read: false
+                };
+                const currentNotifications = u.notifications || [];
+                return { ...u, notifications: [newNotification, ...currentNotifications] };
+            }
+            return u;
+        }));
     };
 
-    // Tutorial Operations (Firestore)
-    const handleSaveTutorial = async (tutorial) => {
-      if (!firebaseUser) return;
-      try {
-        await setDoc(doc(db, ...getPath('tutorials'), tutorial.id), tutorial);
-      } catch (e) {
-        console.error("Save tutorial failed", e);
-        showNotification('保存文档失败', 'error');
-      }
+    const handleUpdateTutorial = (item, isCreate = false) => {
+      if (isCreate) setTutorials(prev => [...prev, item]);
+      else setTutorials(prev => prev.map(t => t.id === item.id ? item : t));
     };
-
-    const handleDeleteTutorial = async (id) => {
-      if (!firebaseUser) return;
-      try {
-        await deleteDoc(doc(db, ...getPath('tutorials'), id));
-        if (selectedTutorialId === id) setSelectedTutorialId(null);
-        showNotification('文档已删除', 'success');
-      } catch(e) { showNotification('删除失败', 'error'); }
+    const handleDeleteTutorial = (id) => {
+      setTutorials(prev => prev.filter(t => t.id !== id));
+      if (selectedTutorialId === id) setSelectedTutorialId(null);
     };
     
-    const handleRenameCategory = async (oldName, newName) => {
-        if (!firebaseUser || !oldName || !newName) return;
-        const batch = writeBatch(db);
-        tutorials.filter(t => t.category === oldName).forEach(t => {
-            const docRef = doc(db, ...getPath('tutorials'), t.id);
-            batch.update(docRef, { category: newName, lastModified: new Date().toISOString() });
-        });
-        await batch.commit();
-        showNotification('分类重命名成功', 'success');
-    };
-
-    // Course Operations (Firestore)
-    const handleSaveCourse = async (course) => {
-        if (!firebaseUser) return;
-        try {
-            await setDoc(doc(db, ...getPath('courses'), course.id), course);
-        } catch (e) {
-            console.error(e);
-            showNotification('课程保存失败', 'error');
-        }
-    };
-    
-    const handleDeleteCourse = async (id) => {
-        if (!firebaseUser) return;
-        try {
-            await deleteDoc(doc(db, ...getPath('courses'), id));
-            showNotification('课程已删除', 'success');
-        } catch (e) { showNotification('删除失败', 'error'); }
+    // Course Handlers
+    const handleUpdateCourses = (updatedCourses) => {
+        setCourses(updatedCourses);
     };
   
-    // Config Operations
-    const handleUpdateCode = async (newCode) => {
-        if (!firebaseUser) return;
-        const settingsRef = doc(db, ...getPath('settings'), 'config');
-        await setDoc(settingsRef, { registrationCode: newCode }, { merge: true });
+    const handleRenameCategory = (oldName, newName) => {
+      if (!oldName || !newName || oldName === newName) return;
+      setTutorials(prev => prev.map(t => {
+          if (t.category === oldName) {
+              return { ...t, category: newName, lastModified: new Date().toISOString() };
+          }
+          return t;
+      }));
+      showNotification('分类重命名成功', 'success');
     };
     
-
-    // --- Loading Screen ---
-    if (!firebaseUser && isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center flex-col gap-4 bg-gray-50 text-gray-500">
-                <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-                <p>正在连接 TIA Lab 云端数据库...</p>
-            </div>
-        );
-    }
 
     return (
       <div className="min-h-screen bg-white font-sans text-gray-900 relative">
@@ -1716,7 +1496,6 @@ const App = () => {
                 <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer" onClick={() => setCurrentView('home')}>
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">L</div>
                   <span className="font-bold text-xl tracking-tight">TIA Lab</span>
-                  <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1 border border-green-200"><Cloud className="w-3 h-3" /> Online</span>
                 </div>
                 <div className="hidden md:flex space-x-1">
                   {[{ id: 'home', label: '首页', icon: null }, { id: 'tutorials', label: '技术教程', icon: BookOpen }, { id: 'courses', label: '教学课程', icon: BookOpen }, { id: 'news', label: '新闻动态', icon: FileText }, { id: 'team', label: '团队成员', icon: Users }].map(nav => (
@@ -1783,8 +1562,9 @@ const App = () => {
                 selectedId={selectedTutorialId} 
                 onSelect={setSelectedTutorialId}
                 user={currentUser}
-                onSave={handleSaveTutorial}
+                onUpdate={handleUpdateTutorial}
                 onDelete={handleDeleteTutorial}
+                onCreate={() => {}} 
                 isAdminOrMember={['admin', 'member'].includes(currentUser?.role)}
                 onRenameCategory={handleRenameCategory}
                 showNotification={showNotification}
@@ -1799,8 +1579,7 @@ const App = () => {
                 courses={courses} 
                 user={currentUser} 
                 isAdminOrMember={['admin', 'member'].includes(currentUser?.role)} 
-                onSaveCourse={handleSaveCourse}
-                onDeleteCourse={handleDeleteCourse}
+                onUpdateCourses={handleUpdateCourses}
                 showNotification={showNotification}
              />
           )}
@@ -1892,7 +1671,7 @@ const App = () => {
                 )}
              </div>
              
-             {/* Alumni Section */}
+             {/* Alumni Section (Same as before) */}
               {users.some(u => u.role === 'alumni') && (
                  <div>
                     <div className="flex items-center gap-4 mb-6">
@@ -1913,7 +1692,7 @@ const App = () => {
              )}
            </div>
         )}
-          {currentView === 'admin' && isAdmin && <AdminPanel users={users} onDeleteUser={handleDeleteUser} onUpdateUser={handleUpdateUser} registrationCode={registrationCode} onUpdateCode={handleUpdateCode} currentUser={currentUser} onNotify={handleNotify} />}
+          {currentView === 'admin' && isAdmin && <AdminPanel users={users} onDeleteUser={handleDeleteUser} onUpdateUser={handleUpdateUser} registrationCode={registrationCode} onUpdateCode={setRegistrationCode} currentUser={currentUser} onNotify={handleNotify} />}
           {currentView === 'login' && <LoginView onLogin={handleLogin} onRegister={handleRegister} users={users} />}
           {currentView === 'profile' && <ProfileView user={currentUser} onUpdateUser={handleUpdateUser} showNotification={showNotification} tutorials={tutorials} onNavigate={(id) => { setSelectedTutorialId(id); setCurrentView('tutorials'); }} />}
           {(currentView === 'news') && <div className="max-w-4xl mx-auto px-4 py-12 text-center"><div className="bg-blue-50 p-12 rounded-2xl"><h2 className="text-2xl font-bold text-blue-900 mb-4">新闻动态建设中</h2><p className="text-blue-700">更多新闻即将上线。</p></div></div>}
