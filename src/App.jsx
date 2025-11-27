@@ -91,19 +91,53 @@ const Monitor = (props) => <IconBase {...props}><rect x="2" y="3" width="20" hei
 const Cloud = (props) => <IconBase {...props}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></IconBase>;
 
 // ==========================================
-// 2. Mock Data & Config (保持结构，但数据将主要来自 Firebase)
+// 2. Mock Data & Config
 // ==========================================
-const DEFAULT_CODE = "LAB2025";
-const apiKey = ""; // Gemini API Key
+const DEFAULT_CODE = "LAB2025"; 
+const apiKey = ""; 
 const AVATAR_POOL = ["🦊", "🐱", "🐼", "🐨", "🐸", "🐙", "🦄", "🤖", "🦖", "🐳", "🦋", "🐞", "🐵", "🐶", "🐰", "🐯", "🦁", "🐮", "🐷", "🐹"];
 
-const INITIAL_USERS = []; 
+const INITIAL_USERS = [];
 const INITIAL_TUTORIALS = [];
-const INITIAL_COURSES = [];
-const INITIAL_NEWS = [];
+const INITIAL_COURSES = [
+  {
+    id: 'c1',
+    title: '医学图像分析深度学习入门',
+    description: '本课程专为医学背景的研究人员和计算机科学初学者设计。我们将从深度学习的基础概念讲起，逐步深入到卷积神经网络（CNN）在医学图像分割、分类和检测中的应用。课程包含丰富的实战案例，如细胞核分割、肿瘤区域识别等。',
+    instructorName: 'Prof. Li',
+    instructorId: 'u1', 
+    level: '入门',
+    duration: '4 周',
+    students: 120,
+    coverImage: null, 
+    modules: [
+      {
+        id: 'm1',
+        title: '第一周：深度学习与医学影像基础',
+        resources: [
+          { id: 'r1', type: 'video', title: '1.1 课程介绍与导学', duration: '10:00' },
+          { id: 'r2', type: 'ppt', title: '1.1 课件幻灯片', size: '5MB' },
+          { id: 'r3', type: 'pdf', title: '阅读材料：WSI 图像格式详解', size: '2.3MB' }
+        ]
+      },
+      {
+        id: 'm2',
+        title: '第二周：卷积神经网络 (CNN) 原理',
+        resources: [
+            { id: 'r4', type: 'video', title: '2.1 CNN 核心组件解析', duration: '25:00' },
+            { id: 'r5', type: 'quiz', title: '单元测试：CNN 基础', duration: '10 题' }
+        ]
+      }
+    ]
+  }
+];
+const INITIAL_NEWS = [
+  { id: 'n1', title: '祝贺课题组论文被CVPR录用', date: '2023-10-24', content: '我们关于弱监督学习的工作被录用...' },
+  { id: 'n2', title: '2024年春季招新启动', date: '2023-11-01', content: '欢迎对AI4Science感兴趣的同学加入...' },
+];
 
 // ==========================================
-// 3. Utils & Hooks (保持原样)
+// 3. Utils & Hooks
 // ==========================================
 const fetchWithRetry = async (url, options, retries = 3, delay = 1000) => {
   try {
@@ -135,7 +169,7 @@ const useMathJax = () => {
 };
 
 // ==========================================
-// 4. Basic UI Components (保持原样)
+// 4. Basic UI Components
 // ==========================================
 const Toast = ({ message, type, onClose }) => {
   useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, [onClose]);
@@ -199,19 +233,25 @@ const UserAvatar = ({ user, size = "md", className = "", onClick }) => {
 };
 
 // ==========================================
-// 5. Feature Components (保持原样)
+// 5. Feature Components
 // ==========================================
 const CodeBlock = ({ language, code }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); };
-  const handleRunInColab = () => { navigator.clipboard.writeText(code); alert("代码已复制到剪贴板！\n正在为您打开 Google Colab 新建页面...\n\n请在打开的页面中粘贴 (Ctrl+V) 代码并运行。"); window.open('https://colab.research.google.com/#create=true', '_blank'); };
+  const handleRunInColab = () => {
+    navigator.clipboard.writeText(code);
+    alert("代码已复制到剪贴板！\n正在为您打开 Google Colab 新建页面...\n\n请在打开的页面中粘贴 (Ctrl+V) 代码并运行。");
+    window.open('https://colab.research.google.com/#create=true', '_blank');
+  };
   return (
     <div className="my-4 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 shadow-sm group">
       <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-200">
         <span className="text-xs font-mono font-bold text-gray-600 uppercase">{language || 'code'}</span>
         <div className="flex gap-2">
           <button onClick={handleCopy} className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors">{copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}{copied ? '已复制' : '复制'}</button>
-          <button onClick={handleRunInColab} className="flex items-center gap-1 text-xs bg-white border border-gray-300 px-2 py-0.5 rounded hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300 transition-colors"><Play className="w-3 h-3 fill-current" /> Run in Colab</button>
+          <button onClick={handleRunInColab} className="flex items-center gap-1 text-xs bg-white border border-gray-300 px-2 py-0.5 rounded hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300 transition-colors" title="在 Colab 中运行">
+            <Play className="w-3 h-3 fill-current" /> Run in Colab
+          </button>
         </div>
       </div>
       <div className="p-4 overflow-x-auto bg-[#282c34] text-gray-100 font-mono text-sm leading-relaxed"><pre>{code}</pre></div>
@@ -278,20 +318,28 @@ const CommentSection = ({ tutorial, onUpdate, user, isAdmin, onNotify }) => {
     const comment = { id: Date.now().toString(), userId: user.id, userName: user.name, userAvatar: user.avatar, content: newComment, date: new Date().toLocaleDateString(), replies: [] };
     onUpdate({ ...tutorial, comments: [...comments, comment] });
     setNewComment('');
-    if (tutorial.authorId && tutorial.authorId !== user.id) onNotify(tutorial.authorId, `${user.name} 评论了你的文章 "${tutorial.title}"`);
+    if (tutorial.authorId && tutorial.authorId !== user.id) {
+        onNotify(tutorial.authorId, `${user.name} 评论了你的文章 "${tutorial.title}"`);
+    }
   };
   const handleAddReply = (commentId) => {
     if (!replyContent.trim()) return;
     const reply = { id: Date.now().toString(), userId: user.id, userName: user.name, userAvatar: user.avatar, content: replyContent, date: new Date().toLocaleDateString() };
+    const parentComment = comments.find(c => c.id === commentId);
     const updatedComments = comments.map(c => c.id === commentId ? { ...c, replies: [...(c.replies || []), reply] } : c);
     onUpdate({ ...tutorial, comments: updatedComments });
     setReplyTo(null); setReplyContent('');
-    if (comments.find(c=>c.id===commentId)?.userId !== user.id) onNotify(comments.find(c=>c.id===commentId).userId, `${user.name} 回复了你的评论`);
+    if (parentComment && parentComment.userId !== user.id) {
+        onNotify(parentComment.userId, `${user.name} 回复了你的评论`);
+    }
   };
   const handleDeleteComment = (commentId, isReply = false, parentId = null) => {
     let updatedComments;
-    if (isReply && parentId) updatedComments = comments.map(c => c.id === parentId ? { ...c, replies: c.replies.filter(r => r.id !== commentId) } : c);
-    else updatedComments = comments.filter(c => c.id !== commentId);
+    if (isReply && parentId) {
+        updatedComments = comments.map(c => c.id === parentId ? { ...c, replies: c.replies.filter(r => r.id !== commentId) } : c);
+    } else {
+        updatedComments = comments.filter(c => c.id !== commentId);
+    }
     onUpdate({ ...tutorial, comments: updatedComments });
   };
   const canDelete = (uid) => isAdmin || user.id === uid;
@@ -573,12 +621,12 @@ const TutorialLayout = ({ tutorials, selectedId, onSelect, user, onUpdate, onDel
   const handleLike = () => { const likedBy = selectedTutorial.likedBy || []; const hasLiked = likedBy.includes(user.id); const newLikedBy = hasLiked ? likedBy.filter(id => id !== user.id) : [...likedBy, user.id]; onUpdate({ ...selectedTutorial, likes: newLikedBy.length, likedBy: newLikedBy }); };
   let notebookStats = null; if (editType === 'ipynb' && editContent) { try { const data = JSON.parse(editContent); notebookStats = { cells: data.cells?.length || 0, size: (editContent.length / 1024).toFixed(1) + ' KB' }; } catch(e) {} }
   
-  // [Crash Fix]: Handle case where selectedTutorial is not found yet (e.g. data loading)
+  // [Fix] Handle undefined/loading state to prevent crash
   if (selectedId && !selectedTutorial && !isCreating) return <div className="flex h-[calc(100vh-64px)] items-center justify-center text-gray-400"><Loader2 className="w-8 h-8 animate-spin text-blue-600"/></div>;
 
   if(!selectedTutorial && !isCreating) return <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-white"><div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col h-full overflow-y-auto hidden md:flex shrink-0"><div className="p-4"><div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" /><input type="text" placeholder="搜索文档..." className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div></div><div className="flex-1 overflow-y-auto px-2 space-y-1">{tutorials.map(t=><button key={t.id} onClick={()=>onSelect(t.id)} className="w-full text-left px-3 py-2 text-sm rounded-md flex items-center justify-between group text-gray-600 hover:bg-gray-100"><span className="truncate">{t.title}</span></button>)}</div>{isAdminOrMember && <div className="p-4 border-t border-gray-200"><Button variant="primary" className="w-full text-sm" onClick={handleCreate}><Plus className="w-4 h-4" /> 新建教程</Button></div>}</div><div className="flex-1 flex items-center justify-center text-gray-400 flex-col gap-4"><BookOpen className="w-16 h-16 opacity-20" /><p>请从左侧选择一个文档查看</p></div></div>;
 
-  // [Safeguard]: When creating, selectedTutorial might be undefined, fallback to local edit state for rendering
+  // Safe fallback for render values
   const displayTitle = selectedTutorial ? selectedTutorial.title : editTitle;
   const displayCategory = selectedTutorial ? selectedTutorial.category : editCategory;
   const displayAuthor = selectedTutorial ? selectedTutorial.authorName : user?.name;
@@ -679,13 +727,9 @@ const App = () => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                // User is signed in, fetch profile from Firestore 'users' collection
-                // Note: The 'users' listener below will actually set the 'users' state.
-                // We just need to find *this* user in that list or wait for it.
-                // For immediate feedback, we can set a temporary object if needed, 
-                // but best to rely on the main data sync.
-                // Here we just set loading to false to render UI.
-                // Actual 'currentUser' state logic: derived from 'users' array + firebaseUser.uid
+                // User is signed in, wait for 'users' listener to populate data
+                // We rely on the real-time listener below to set 'users' state
+                // The effect dependent on [users, auth.currentUser] will set currentUser
             } else {
                 setCurrentUser(null);
             }
@@ -696,22 +740,18 @@ const App = () => {
 
     // --- 2. Real-time Data Sync (Firestore) ---
     useEffect(() => {
-        // Sync Users
         const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
             const list = snap.docs.map(d => d.data());
             setUsers(list);
         });
-        // Sync Tutorials
         const unsubTutorials = onSnapshot(collection(db, "tutorials"), (snap) => {
             const list = snap.docs.map(d => d.data());
             setTutorials(list);
         });
-        // Sync Courses
         const unsubCourses = onSnapshot(collection(db, "courses"), (snap) => {
             const list = snap.docs.map(d => d.data());
             setCourses(list);
         });
-        // Sync News
         const unsubNews = onSnapshot(collection(db, "news"), (snap) => {
             const list = snap.docs.map(d => d.data());
             setNews(list);
@@ -742,7 +782,6 @@ const App = () => {
 
     // --- 4. Action Handlers (Firebase) ---
 
-    // Login
     const handleLogin = async (email, password) => {
         try {
             await signInWithEmailAndPassword(auth, email, password);
@@ -754,17 +793,11 @@ const App = () => {
         }
     };
 
-    // Register
     const handleRegister = async (name, email, password, code) => {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const uid = userCredential.user.uid;
             
-            // Determine role based on local logic (first user is admin, or check code)
-            // Note: In a real app, this check should happen on the server (Firebase Functions) or via Security Rules.
-            // Here we keep the original client-side logic for simplicity as requested.
-            // HOWEVER, checking 'users.length === 0' relies on the client having loaded users.
-            // This is a race condition in distributed systems but acceptable for this specific request's scope.
             let role = 'guest';
             const hasAdmin = users.some(u => u.role === 'admin');
             if (users.length === 0 || !hasAdmin) role = 'admin';
@@ -782,7 +815,6 @@ const App = () => {
                 notifications: []
             };
 
-            // Create user document in Firestore
             await setDoc(doc(db, "users", uid), newUser);
 
             showNotification('注册成功！', 'success');
@@ -793,7 +825,6 @@ const App = () => {
         }
     };
 
-    // Access Control
     const hasAccess = (section) => {
         if (!currentUser) return false;
         if (['admin', 'member', 'alumni'].includes(currentUser.role)) return true;
@@ -802,24 +833,18 @@ const App = () => {
     };
     const isAdmin = currentUser?.role === 'admin';
 
-    // Update User
     const handleUpdateUser = async (id, data) => {
         try {
             await updateDoc(doc(db, "users", id), data);
-            // Optional: Manually update dependent collections if denormalized data exists (like comments author name)
-            // Keeping it simple: we update the user, UI updates. 
-            // If the original app relied on updating tutorials when user name changes, we'd need a batch write or Cloud Function.
             showNotification('更新成功', 'success');
         } catch (error) {
             showNotification('更新失败', 'error');
         }
     };
 
-    // Delete User
     const handleDeleteUser = async (id) => {
         if(window.confirm('确定删除用户？')) {
              try {
-                 // Note: This only deletes the Firestore doc. Deleting Auth user requires Cloud Function or Admin SDK.
                  await deleteDoc(doc(db, "users", id));
                  showNotification('用户资料已删除', 'success');
              } catch (error) {
@@ -828,10 +853,8 @@ const App = () => {
         }
     };
 
-    // Tutorials CRUD
     const handleUpdateTutorial = async (item, isCreate = false) => {
         try {
-            // Using 'setDoc' allows us to specify the ID (which we generated locally) or update if exists
             await setDoc(doc(db, "tutorials", item.id), item);
             if (isCreate) setSelectedTutorialId(item.id);
             showNotification('保存成功', 'success');
@@ -853,22 +876,11 @@ const App = () => {
         }
     };
 
-    // Courses CRUD
-    // The original CourseView passed the *entire* updated list.
-    // We need to adapt that to Firestore logic.
-    // Strategy: Receive the new list. We can't just "set" the list.
-    // We will simply iterate and upsert the items in the list.
-    // For deletion, it's trickier with this pattern, but typically the View calls this on Save/Add.
-    // For Delete, CourseView has internal logic. Let's see...
-    // CourseView calls onUpdateCourses(newList).
-    // So we have to compare `courses` (db state) vs `newCoursesList` (local state) to find deletions.
     const handleUpdateCourses = async (newCoursesList) => {
         try {
-            // 1. Find items to add/update
             for (const course of newCoursesList) {
                 await setDoc(doc(db, "courses", course.id), course);
             }
-            // 2. Find items to delete
             const newIds = new Set(newCoursesList.map(c => c.id));
             const itemsToDelete = courses.filter(c => !newIds.has(c.id));
             for (const course of itemsToDelete) {
@@ -881,10 +893,6 @@ const App = () => {
     };
 
     const handleNotify = async (targetUserId, content) => {
-        // Original logic: update user's notification array
-        // We need to fetch the user first or just use arrayUnion if we want to be fancy.
-        // Keeping strictly to original logic flow: read -> update.
-        // But since we have `users` in state, we can find the user, clone notifications, add one, then write back.
         const targetUser = users.find(u => u.id === targetUserId);
         if (targetUser) {
              const newNotification = {
@@ -898,7 +906,6 @@ const App = () => {
         }
     };
 
-    // Initial Loading State
     if (loading) {
         return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600"/></div>;
     }
